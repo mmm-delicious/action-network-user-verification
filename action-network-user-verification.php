@@ -2,7 +2,7 @@
 /**
  * Plugin Name: WP-Members User Verification
  * Description: Verifies user against Action Network subscriber list and completes user profile with membership data and automatically schedules verification after registration.
- * Version: 1.8
+ * Version: 1.9
  * Author: MMM Delicious
  * Developer: Mark McDonnell
  * Requires at least: 5.0
@@ -67,12 +67,20 @@ function run_an_verification_for_user($user_id) {
     $an_ssn_raw   = preg_replace('/\.0$/', '', $an_ssn_raw);
     $user_ssn_raw = $user_ssn      ?? '';
 
-    $an_ssn = normalize_ssn($an_ssn_raw);
-    $user_ssn_clean = normalize_ssn($user_ssn_raw);
+    $an_ssn = mmm_an_normalize_ssn($an_ssn_raw);
+    $user_ssn_clean = mmm_an_normalize_ssn($user_ssn_raw);
 
     // PATCH malformed SSN in Action Network if needed
     if (!empty($an_ssn_raw) && strlen($an_ssn_raw) < 4 && strlen($an_ssn) === 4) {
         $person_url = $data['_links']['self']['href'] ?? null;
+
+        // SSRF protection: only allow requests to actionnetwork.org
+        $allowed_host = 'actionnetwork.org';
+        $parsed_host  = parse_url($person_url, PHP_URL_HOST);
+        if ($person_url && $parsed_host !== $allowed_host) {
+            $person_url = null;
+            update_user_meta($user_id, 'an_verification_note', '⚠️ SSRF blocked: unexpected URL in API response.');
+        }
 
         if ($person_url) {
             $patch_response = wp_remote_request($person_url, [
@@ -92,7 +100,7 @@ function run_an_verification_for_user($user_id) {
                 update_user_meta($user_id, 'an_verification_note', '🔁 Fixed malformed SSN on Action Network. Retrying match...');
                 $custom['last_4_ssn'] = $an_ssn;
                 $an_ssn_raw = $an_ssn;
-                $an_ssn = normalize_ssn($an_ssn_raw);
+                $an_ssn = mmm_an_normalize_ssn($an_ssn_raw);
             } else {
                 update_user_meta($user_id, 'an_verification_note', '⚠️ Tried to fix AN SSN but failed: ' . $patch_response->get_error_message());
             }
@@ -105,8 +113,8 @@ function run_an_verification_for_user($user_id) {
         update_user_meta($user_id, 'an_verification_note', '✅ Verified and updated successfully.');
 
         $meta_updates = [
-            'first_name'        => sentence_case_name($data['given_name'] ?? ''),
-            'last_name'         => sentence_case_name($data['family_name'] ?? ''),
+            'first_name'        => mmm_an_sentence_case($data['given_name'] ?? ''),
+            'last_name'         => mmm_an_sentence_case($data['family_name'] ?? ''),
             'phone1'            => $data['phone_numbers'][0]['number'] ?? '',
             'billing_address_1' => $data['postal_addresses'][0]['address_lines'][0] ?? '',
             'billing_city'      => $data['postal_addresses'][0]['locality'] ?? '',
@@ -146,12 +154,58 @@ function run_an_verification_for_user($user_id) {
     }
 }
 
-function normalize_ssn($ssn) {
+function mmm_an_normalize_ssn($ssn) {
     return str_pad(preg_replace('/\D/', '', $ssn), 4, '0', STR_PAD_LEFT);
 }
 
-function sentence_case_name($name) {
+function mmm_an_sentence_case($name) {
     return ucwords(strtolower(trim($name)));
+}
+
+// Settings page for API key
+add_action('admin_menu', function() {
+    add_options_page(
+        'Action Network Settings',
+        'Action Network',
+        'manage_options',
+        'an-verification-settings',
+        'mmm_an_render_settings_page'
+    );
+});
+
+add_action('admin_init', function() {
+    register_setting('an_verification_settings', 'action_network_api_key', [
+        'sanitize_callback' => 'sanitize_text_field',
+    ]);
+});
+
+function mmm_an_render_settings_page() {
+    if (!current_user_can('manage_options')) return;
+    ?>
+    <div class="wrap">
+        <h1>Action Network Settings</h1>
+        <form method="post" action="options.php">
+            <?php settings_fields('an_verification_settings'); ?>
+            <table class="form-table">
+                <tr>
+                    <th><label for="action_network_api_key">API Key (OSDI Token)</label></th>
+                    <td>
+                        <?php $key = get_option('action_network_api_key', ''); ?>
+                        <input type="password" id="action_network_api_key" name="action_network_api_key"
+                               value="<?php echo esc_attr($key); ?>" class="regular-text" autocomplete="off" />
+                        <p class="description">Your Action Network OSDI API token. Found under <strong>Account > API &amp; Integrations</strong> in Action Network.</p>
+                        <?php if (!empty($key)): ?>
+                            <p class="description" style="color: green;">&#10003; API key is set.</p>
+                        <?php else: ?>
+                            <p class="description" style="color: red;">&#9888; No API key set — verification will not run.</p>
+                        <?php endif; ?>
+                    </td>
+                </tr>
+            </table>
+            <?php submit_button('Save API Key'); ?>
+        </form>
+    </div>
+    <?php
 }
 
 // Manual Profile Sync Function
