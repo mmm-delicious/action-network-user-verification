@@ -2,7 +2,7 @@
 /**
  * Plugin Name: WP-Members User Verification
  * Description: Verifies user against Action Network subscriber list and completes user profile with membership data and automatically schedules verification after registration.
- * Version: 1.9.1
+ * Version: 1.9.2
  * Author: MMM Delicious
  * Developer: Mark McDonnell
  * Requires at least: 5.0
