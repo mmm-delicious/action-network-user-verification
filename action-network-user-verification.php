@@ -1,11 +1,16 @@
 <?php
 /**
- Plugin Name: WP-Members User Verification
- Description: Verifies user against Action Network subscriber list and completes user profile with membership data and automatically schedules verification after registration.
- * Version: 1.7
+ * Plugin Name: WP-Members User Verification
+ * Description: Verifies user against Action Network subscriber list and completes user profile with membership data and automatically schedules verification after registration.
+ * Version: 1.8
  * Author: MMM Delicious
  * Developer: Mark McDonnell
+ * Requires at least: 5.0
+ * Requires PHP: 7.4
+ * Tested up to: 6.7
  */
+
+defined( 'ABSPATH' ) || exit;
 
 add_action('user_register', 'schedule_an_verification_for_user');
 function schedule_an_verification_for_user($user_id) {
@@ -187,7 +192,7 @@ add_action('admin_notices', function() {
     $fields   = isset($_GET['an_fields']) && $_GET['an_fields'] !== '' ? sanitize_text_field($_GET['an_fields']) : 'No fields updated.';
 
     echo '<div class="notice notice-info is-dismissible">';
-    echo "<p><strong>Action Network Sync Result:</strong><br>$verified<br>$note<br><em>Fields updated:</em> $fields</p>";
+    echo '<p><strong>Action Network Sync Result:</strong><br>' . $verified . '<br>' . esc_html( $note ) . '<br><em>Fields updated:</em> ' . esc_html( $fields ) . '</p>';
     echo '</div>';
 });
 
