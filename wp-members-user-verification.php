@@ -2,7 +2,7 @@
 /**
  * Plugin Name: WP-Members User Verification
  * Description: Verifies user against Action Network subscriber list and completes user profile with membership data and automatically schedules verification after registration.
- * Version: 1.9.4
+ * Version: 1.9.5
  * Author: MMM Delicious
  * Developer: Mark McDonnell
  * Requires at least: 5.0
@@ -19,7 +19,7 @@ $mmm_updater = \YahnisElsts\PluginUpdateChecker\v5\PucFactory::buildUpdateChecke
     __FILE__,
     'wp-members-user-verification'
 );
-$mmm_updater->setCheckPeriod(48);
+$mmm_updater->scheduler->checkPeriod = 48; // setCheckPeriod() not available in bundled PUC v5p6
 
 add_action('user_register', 'schedule_an_verification_for_user');
 function schedule_an_verification_for_user($user_id) {
